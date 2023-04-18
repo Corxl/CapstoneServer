@@ -13,22 +13,21 @@ public class Server {
     private Socket socket;
     private ServerSocket server;
     private static int port = 4909;
-    private final static HashMap<UUID, String> playerUUIDs = new HashMap<>();
+    private final static HashMap<String, String> playerUUIDs = new HashMap<>();
     private final static HashMap<String, Board> lobbies = new HashMap<>();
     public Server() throws IOException {
         this.server = new ServerSocket(port);
+        int threadCount = 0;
         while (true) {
-            socket = server.accept();
-            UUID id = UUID.randomUUID();
-            while (playerUUIDs.containsKey(id))
-                id = UUID.randomUUID();
-            playerUUIDs.put(id, "");
-            System.out.println("New player with id: " + id);
-            new PlayerThread(socket, id, this).start();
+            Socket socketInput = server.accept();
+            PlayerThread newPlayer = new PlayerThread(socketInput, this);
+            Socket socketOutput = server.accept();
+            newPlayer.setUpdateClient(socketOutput);
+            newPlayer.start();
         }
     }
 
-    public static HashMap<UUID, String> getPlayerUUIDs() {
+    public static HashMap<String, String> getPlayerUUIDs() {
         return playerUUIDs;
     }
     public static HashMap<String, Board> getLobbies() {

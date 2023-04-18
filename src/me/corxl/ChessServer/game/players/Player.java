@@ -6,6 +6,7 @@ public class Player {
     private TeamColor color;
     private String name;
     private PlayerThread thread;
+    private String lobbyKey;
 
     public Player(TeamColor color, String name, PlayerThread thread) {
         this.color = color;
@@ -35,5 +36,9 @@ public class Player {
 
     public void setThread(PlayerThread thread) {
         this.thread = thread;
+    }
+
+    public void setLobbyKey(String key) {
+        this.lobbyKey = key;
     }
 }

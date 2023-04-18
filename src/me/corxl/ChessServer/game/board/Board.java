@@ -1,5 +1,6 @@
 package me.corxl.ChessServer.game.board;
 
+import me.corxl.ChessServer.Server;
 import me.corxl.ChessServer.game.pieces.Piece;
 import me.corxl.ChessServer.game.pieces.PieceType;
 import me.corxl.ChessServer.game.pieces.TeamColor;
@@ -13,7 +14,7 @@ import java.util.UUID;
 
 public class Board {
     private Space[][] spaces;
-    private final HashMap<UUID, Player> players = new HashMap<>();
+    private final HashMap<String, Player> players = new HashMap<>();
     private final HashMap<TeamColor, Boolean> isChecked = new HashMap<>();
     private final static HashMap<TeamColor, TeamColor> opposingColors = new HashMap<>();
     private TeamColor turn;
@@ -29,6 +30,9 @@ public class Board {
             {PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.KING, PieceType.QUEEN, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK}
     };
 
+    public HashMap<String, Player> getPlayers() {
+        return this.players;
+    }
     public Board(String gameKey) {
         this.gameKey = gameKey;
         opposingColors.put(TeamColor.WHITE, TeamColor.BLACK);
@@ -60,6 +64,28 @@ public class Board {
             }
         }
 
+    }
+
+    public TeamColor getTurn() {
+        return this.turn;
+    }
+
+    public void swapTurn() {
+        this.turn = opposingColors.get(this.turn);
+    }
+
+    public Piece getPieceByPosition(BoardLocation location) {
+        if (location.getX() > 8 || location.getX() < 0 || location.getY() > 8 || location.getY() < 0)
+            return null;
+        return this.spaces[location.getX()][location.getY()].getPiece();
+    }
+
+    public void setPiece(Piece p, BoardLocation oldLoc, BoardLocation newLoc) {
+        this.spaces[oldLoc.getX()][oldLoc.getY()].setPiece(null);
+        this.spaces[newLoc.getX()][newLoc.getY()].setPiece(p);
+        swapTurn();
+        System.out.println("It is now: " + this.getTurn() + "'s turn.");
+        updatePlayers(this.gameKey);
     }
 
 
@@ -145,14 +171,19 @@ public class Board {
         s.setPiece(p);
         old.setPiece(null);
     }
-    public boolean isAPlayer(UUID id)  {
+    public boolean isAPlayer(String id)  {
         return this.players.containsKey(id);
     }
-    public void addPlayer(UUID id, Player player) {
+    public void addPlayer(String id, Player player) {
         this.players.put(id, player);
+        player.getThread().setLobbyKey(this.gameKey);
+        System.out.println(id + " added to lobby: " + this.gameKey);
     }
     public void setPlayerColor(UUID id, TeamColor color) {
         this.players.get(id).setColor(color);
+    }
+    public TeamColor getColorByPlayer(String id) {
+        return this.players.get(id).getColor();
     }
 
     public Integer[][][] getLayout() {
@@ -170,10 +201,13 @@ public class Board {
         return layout;
     }
 
-    public void updatePlayers() {
+    public void updatePlayers(String lobbyKey) {
         this.players.forEach((id, p)->{
             try {
-                p.getThread().updateGame(this.getLayout());
+                p.getThread().setLobbyKey(lobbyKey);
+                p.getThread().updateGame(this.getLayout(), p.getColor().getKey());
+                //p.getThread().setBoard(this);
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
