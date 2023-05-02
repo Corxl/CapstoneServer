@@ -37,6 +37,9 @@ public class Piece {
     public boolean isPawnMoved() {
         return this.pawnMoved;
     }
+    public void pawnMoved() {
+        this.pawnMoved = true;
+    }
     public TeamColor getColor() {
         return this.color;
     }
@@ -185,10 +188,9 @@ public class Piece {
                     BoardLocation newLoc = new BoardLocation(i, j);
                     board.simulateMove(spacesCopy, pieceCopy, newLoc, oldLoc);
                     boolean[][] possMoves = board.getPossibleMovesByColor(board.getOpposingColor().get(pieceCopy.getColor()), spacesCopy);
-                    boolean isChecked = Board.isInCheck(pieceCopy.getColor(), spacesCopy, possMoves);
+                    boolean isChecked = board.isInCheck(pieceCopy.getColor(), spacesCopy, possMoves);
                     if (!isChecked) {
                         moveSpaces[i][j] = true;
-                        System.out.println(i + ", " + j);
                     } else {
                         moveSpaces[i][j] = false;
                     }
@@ -244,70 +246,88 @@ public class Piece {
     }
 
     private static void kingMoves(boolean[][] moveSpaces, BoardLocation location, Piece piece, Space[][] spaces, boolean targetFriend) {
-        int[][] relativeSpaces = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-
-        for (int i = 0; i < relativeSpaces.length; i++) {
-            int xMod = relativeSpaces[i][0];
-            int yMod = relativeSpaces[i][1];
-            if (location.getX() + xMod >= 0 && location.getX() + xMod < 8) {
-                if (spaces[location.getX() + xMod][location.getY()].isEmpty())
-                    moveSpaces[location.getX() + xMod][location.getY()] = true;
-                else {
-                    if (spaces[location.getX() + xMod][location.getY()].getPiece().getColor() != piece.getColor() || targetFriend)
+        try {
+            int[][] relativeSpaces = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
+            for (int i = 0; i < relativeSpaces.length; i++) {
+                int xMod = relativeSpaces[i][0];
+                int yMod = relativeSpaces[i][1];
+                if (location.getX() + xMod >= 0 && location.getX() + xMod < 8) {
+                    if (spaces[location.getX() + xMod][location.getY()].isEmpty())
                         moveSpaces[location.getX() + xMod][location.getY()] = true;
-                }
-                if (spaces[location.getX() + xMod][location.getY() + 1].isEmpty())
-                    moveSpaces[location.getX() + xMod][location.getY() + 1] = true;
-                else {
-                    if (spaces[location.getX() + xMod][location.getY() + 1].getPiece().getColor() != piece.getColor() || targetFriend)
-                        moveSpaces[location.getX() + xMod][location.getY() + 1] = true;
-                }
-                if (location.getY() - 1 >= 0 && location.getY() - 1 < 8) {
-                    if (spaces[location.getX() + xMod][location.getY() - 1].isEmpty())
-                        moveSpaces[location.getX() + xMod][location.getY() - 1] = true;
                     else {
-                        if (spaces[location.getX() + xMod][location.getY() - 1].getPiece().getColor() != piece.getColor() || targetFriend)
+                        if (spaces[location.getX() + xMod][location.getY()].getPiece().getColor() != piece.getColor() || targetFriend)
+                            moveSpaces[location.getX() + xMod][location.getY()] = true;
+                    }
+                    if (spaces[location.getX() + xMod][location.getY() + 1].isEmpty())
+                        moveSpaces[location.getX() + xMod][location.getY() + 1] = true;
+                    else {
+                        if (spaces[location.getX() + xMod][location.getY() + 1].getPiece().getColor() != piece.getColor() || targetFriend)
+                            moveSpaces[location.getX() + xMod][location.getY() + 1] = true;
+                    }
+                    if (location.getY() - 1 >= 0 && location.getY() - 1 < 8) {
+                        if (spaces[location.getX() + xMod][location.getY() - 1].isEmpty())
                             moveSpaces[location.getX() + xMod][location.getY() - 1] = true;
+                        else {
+                            if (spaces[location.getX() + xMod][location.getY() - 1].getPiece().getColor() != piece.getColor() || targetFriend)
+                                moveSpaces[location.getX() + xMod][location.getY() - 1] = true;
+                        }
+                    }
+                }
+                if (!(location.getY() + yMod < 0 || location.getY() + yMod >= 8)) {
+                    if (spaces[location.getX()][location.getY() + yMod].isEmpty())
+                        moveSpaces[location.getX()][location.getY() + yMod] = true;
+                    else {
+                        if (spaces[location.getX()][location.getY() + yMod].getPiece().getColor() != piece.getColor() || targetFriend)
+                            moveSpaces[location.getX()][location.getY() + yMod] = true;
                     }
                 }
             }
-            if (!(location.getY() + yMod < 0 || location.getY() + yMod >= 8)) {
-                if (spaces[location.getX()][location.getY() + yMod].isEmpty())
-                    moveSpaces[location.getX()][location.getY() + yMod] = true;
-                else {
-                    if (spaces[location.getX()][location.getY() + yMod].getPiece().getColor() != piece.getColor() || targetFriend)
-                        moveSpaces[location.getX()][location.getY() + yMod] = true;
-                }
+            if (piece.isPawnMoved()) {
+                return;
             }
-        }
+            int castleDirection = piece.getColor()==TeamColor.WHITE ? -1 : 1;
+            int Y = location.getY() + (castleDirection * 3);
+            Piece rook = spaces[location.getX()][Y].getPiece();
+            if (rook == null || rook.getPieceType() != PieceType.ROOK || rook.isPawnMoved()) {
+                return;
+            }
+            if (spaces[location.getX()][location.getY() + castleDirection].getPiece() != null || spaces[location.getX()][location.getY() + (castleDirection * 2)].getPiece() != null)
+                return;
+            moveSpaces[location.getX()][Y] = true;
+        } catch (ArrayIndexOutOfBoundsException ignore) {}
     }
 
     private static void pawnMoves(boolean[][] moveSpaces, BoardLocation location, Piece piece, Space[][] spaces, boolean targetFriend) {
-        int modifier = piece.isWhite() ? -1 : 1;
-        int pawnMovedModifier = !piece.pawnMoved ? 2 : 1;
-        //System.out.println(location.getX() + ", " + location.getY() + " :: " + pawnMovedModifier);
-        if (!(location.getY() - 1 < 0)) {
-            Space left = spaces[location.getX() + (modifier)][location.getY() - 1];
-            if (!left.isEmpty())
-                if (left.getPiece().getColor() != piece.getColor() || targetFriend)
-                    moveSpaces[location.getX() + (modifier)][location.getY() - 1] = true;
-        }
-        if (!(location.getY() + 1 >= spaces[location.getX() + (modifier)].length)) {
-            Space right = spaces[location.getX() + (modifier)][location.getY() + 1];
-            if (!right.isEmpty())
-                if (right.getPiece().getColor() != piece.getColor() || targetFriend)
-                    moveSpaces[location.getX() + (modifier)][location.getY() + 1] = true;
-        }
-        for (int i = 1; i <= pawnMovedModifier; i++) {
-            Space s = spaces[location.getX() + (modifier * i)][location.getY()];
-            if (s.isEmpty()) {
-                moveSpaces[location.getX() + (modifier * i)][location.getY()] = true;
-            } else {
-                if (targetFriend)
-                    moveSpaces[location.getX() + (modifier * i)][location.getY()] = true;
-                break;
+        try {
+            int modifier = piece.isWhite() ? -1 : 1;
+            int pawnMovedModifier = !piece.pawnMoved ? 2 : 1;
+            if (!(location.getY() - 1 < 0) && (location.getX() + (modifier) >=0)) {
+                Space left = spaces[location.getX() + (modifier)][location.getY() - 1];
+                if (!left.isEmpty())
+                    if (left.getPiece().getColor() != piece.getColor() || targetFriend)
+                        moveSpaces[location.getX() + (modifier)][location.getY() - 1] = true;
             }
-        }
+            if ((location.getX() + (modifier) >=0) && !(location.getY() + 1 >= spaces[location.getX() + (modifier)].length)) {
+                Space right = spaces[location.getX() + (modifier)][location.getY() + 1];
+                if (!right.isEmpty())
+                    if (right.getPiece().getColor() != piece.getColor() || targetFriend)
+                        moveSpaces[location.getX() + (modifier)][location.getY() + 1] = true;
+            }
+
+            for (int i = 1; i <= pawnMovedModifier; i++) {
+                if (location.getX() + (modifier * i) >= 0) {
+                    Space s = spaces[location.getX() + (modifier * i)][location.getY()];
+                    if (s.isEmpty()) {
+                        moveSpaces[location.getX() + (modifier * i)][location.getY()] = true;
+                    } else {
+                        if (targetFriend) {
+                            moveSpaces[location.getX() + (modifier * i)][location.getY()] = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (ArrayIndexOutOfBoundsException ignore) {}
     }
 
     private static void rookMoves(boolean[][] moveSpaces, Piece piece, Space[][] spaces, boolean targetFriend) {

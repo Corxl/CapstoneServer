@@ -3,6 +3,7 @@ package me.corxl.ChessServer.game.players;
 import me.corxl.ChessServer.Server;
 import me.corxl.ChessServer.game.board.Board;
 import me.corxl.ChessServer.game.pieces.Piece;
+import me.corxl.ChessServer.game.pieces.PieceType;
 import me.corxl.ChessServer.game.pieces.TeamColor;
 import me.corxl.ChessServer.game.spaces.BoardLocation;
 
@@ -62,24 +63,15 @@ public class PlayerThread extends Thread {
                 } else if (requestType.equals("getPossibleMoves")) {
                     String code = (String) data[2];
                     int[] pos = (int[]) data[3];
-                    System.out.println("UUID: " + playerKey + " code: " + code);
-                    Server.getLobbies().forEach((k, v) -> System.out.println(k + " | " + code + " -=- " + v));
-                    System.out.println(Server.getLobbies().get(code));
                     this.getPossibleMoves(playerKey, pos[0], pos[1]);
                 } else if (requestType.equals("requestMove")) {
                     requestMove(data);
                 }
-//                if (requestType.equals("getPossibleMoves")) {
-//                    requestPossibleMoves(data);
-//                } else if (requestType.equals("getDefaultSpaces")) {
-//                    getDefaultSpaces();
-//                } else if (requestType.equals("requestMove")) {
-//                    requestSetPiece(data);
-//                }
             } catch (IOException | ClassNotFoundException | InterruptedException e) {
                 System.out.println("Player with id: " + playerKey + " has disconnected.");
-                e.printStackTrace();
-               break;
+                if (this.board != null)
+                    this.board.closeLobby("Player has disconnected", 0);
+                break;
             }
         }
     }
@@ -89,45 +81,31 @@ public class PlayerThread extends Thread {
         int[] oldLocs = (int[]) data[2];
         BoardLocation newLoc = new BoardLocation(newLocs[0], newLocs[1]);
         BoardLocation oldLoc = new BoardLocation(oldLocs[0], oldLocs[1]);
-
         Piece p = this.board.getPieceByPosition(oldLoc);
         Piece targetPiece = this.board.getPieceByPosition(newLoc);
                 oout = new ObjectOutputStream(socket.getOutputStream());
         if (p == null) {
-            oout.writeObject(null);
+            oout.writeObject(new Object[]{-1});
             return;
         }
         int newX = newLoc.getX();
         int newY = newLoc.getY();
         if (newX > 8 || newX < 0 || newY > 8 || newY < 0) {
-            oout.writeObject(null);
+            oout.writeObject(new Object[]{-1});
             return;
         }
 
         if (!p.getPossibleMoves(false)[newX][newY]) {
-            oout.writeObject(null);
+            oout.writeObject(new Object[]{-1});
             return;
         }
-        this.board.setPiece(p, oldLoc, newLoc);
-        oout.writeObject(p.getPieceType().getKey());
+        this.board.setPiece(p, oldLoc, newLoc, targetPiece);
+        oout.writeObject(new Object[]{p.getPieceType().getKey()});
     }
 
     private void getPossibleMoves(String id, int x, int y) throws IOException {
-//        System.out.println("Input id: " + id);
-//        String lobbycode = Server.getPlayerUUIDs().get(id);
-//        System.out.println("THISSIHSIHS: " + this.playerKey + " | id: " + id);
-//        Server.getPlayerUUIDs().forEach((k, v)->{
-//            System.out.println(k + " | " + v + " :: " + id);
-//        });
-//        System.out.println(lobbycode);
-
-        this.board.getPlayers().forEach((k, v) -> {
-            System.out.println(k + " | " + v.getColor());
-        });
-
         boolean[][] moveSpaces = new boolean[8][8];
         Piece p = this.board.getSpaces()[x][y].getPiece();
-
         oout = new ObjectOutputStream(socket.getOutputStream());
         if (p==null || !this.board.isAPlayer(id) || this.board.getColorByPlayer(this.playerKey)!=p.getColor() || this.board.getTurn()!=p.getColor()) {
             oout.writeObject(moveSpaces);
@@ -169,33 +147,16 @@ public class PlayerThread extends Thread {
                 return;
             }
             this.lobbyKey = lobbyKey;
-            System.out.println("Key??: " + lobbyKey);
             this.board = lobbies.get(this.lobbyKey);
 
             //this.board.swapTurn();
-
-            System.out.println("\n\n");
-            this.board.getPlayers().forEach((k, v) -> {
-                System.out.println("ID: " + k + "\nColor: " + v);
-            });
-            System.out.println("\n\n");
-
-            System.out.println(this.playerKey + " has joined the lobby with the code: " + this.lobbyKey);
-            oout = new ObjectOutputStream(socket.getOutputStream());
-            oout.writeObject("Joining game...");
-            System.out.println("Updating to 1st client.");
 //            Thread.sleep(100);
-            System.out.println("-----------");
-            System.out.println("--------------");
-            this.board.addPlayer(this.playerKey, new Player(TeamColor.BLACK, "Black", this));
-            System.out.println("Updating plyers with key: " + lobbyKey);
-            this.board.updatePlayers(lobbyKey);
 
-            System.out.println("\n\n");
-            this.board.getPlayers().forEach((k, v) -> {
-                System.out.println("ID: " + k + "\nColor: " + v);
-            });
-            System.out.println("\n\n");
+            oout = new ObjectOutputStream(socket.getOutputStream());
+            oout.writeObject("Joining Lobby.");
+
+            this.board.addPlayer(this.playerKey, new Player(TeamColor.BLACK, "Black", this));
+            this.board.updatePlayers(lobbyKey, -1);
 
         } else {
             oout = new ObjectOutputStream(socket.getOutputStream());
@@ -203,9 +164,9 @@ public class PlayerThread extends Thread {
         }
     }
 
-    public void updateGame(Integer[][][] layout, int teamColor) throws IOException {
+    public void updateGame(Integer[][][] layout, int teamColor, int pieceType) throws IOException {
         ObjectOutputStream uoout = new ObjectOutputStream(updateClient.getOutputStream());
-        Object[] data = new Object[]{"updateBoard", layout, teamColor};
+        Object[] data = new Object[]{"updateBoard", layout, teamColor, pieceType};
         uoout.writeObject(data);
     }
 
@@ -214,9 +175,18 @@ public class PlayerThread extends Thread {
     }
 
     public void setLobbyKey(String key) {
-        System.out.println("Key: " + key + " set to " + this.playerKey + " on thread: " + Thread.currentThread().getPriority());
         this.lobbyKey = key;
         Server.getPlayerUUIDs().put(this.playerKey, key);
+    }
+
+    public void showAlert(String alert, int type) {
+        try {
+            ObjectOutputStream uoout = new ObjectOutputStream(updateClient.getOutputStream());
+            Object[] data = new Object[]{"alert", alert, type};
+            uoout.writeObject(data);
+        } catch (IOException ignore) {
+            System.out.println("??");
+        }
     }
 
 }

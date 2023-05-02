@@ -40,16 +40,8 @@ public class Server {
         return b;
     }
 
-    public static void sendBoardUpdate(String lobbyID) {
-
-    }
-
-    public static int getLobbysSize() {
-        return lobbies.size();
-    }
-
-    public ServerSocket getServer() {
-        return this.server;
+    public static void clearLobby(String key) {
+        lobbies.remove(key);
     }
 
 }

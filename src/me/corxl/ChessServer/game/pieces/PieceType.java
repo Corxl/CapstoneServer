@@ -3,6 +3,7 @@ package me.corxl.ChessServer.game.pieces;
 import java.io.Serializable;
 
 public enum PieceType implements Serializable {
+    NONE(new String[]{""}, -1),
     KING(new String[]{"pieces\\w_king_2x_ns.png", "pieces\\b_king_2x_ns.png"}, 1),
     QUEEN(new String[]{"pieces\\w_queen_2x_ns.png", "pieces\\b_queen_2x_ns.png"}, 2),
     PAWN(new String[]{"pieces\\w_pawn_2x_ns.png", "pieces\\b_pawn_2x_ns.png"}, 3),

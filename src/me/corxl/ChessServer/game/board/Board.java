@@ -52,6 +52,16 @@ public class Board {
                 {new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w)},
                 {new BoardLayout(ro, w), new BoardLayout(kn, w), new BoardLayout(bi, w), new BoardLayout(ki, w), new BoardLayout(qu, w), new BoardLayout(bi, w), new BoardLayout(kn, w), new BoardLayout(ro, w)}
         };
+//        BoardLayout[][] layout = new BoardLayout[][]{
+//                {new BoardLayout(ro, b), new BoardLayout(kn, b), new BoardLayout(bi, b), new BoardLayout(qu, b), new BoardLayout(ki, b), null, null, new BoardLayout(ro, b)},
+//                {null, null, null, null, null,  new BoardLayout(pa, b), null, null},
+//                {new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b), new BoardLayout(pa, b)},
+//                {null, null, null, null, null, null, null, null},
+//                {null, null, null, null, null, null, null, null},
+//                {null, null, null, null, null,null, null, null},
+//                {new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w), new BoardLayout(pa, w)},
+//                {new BoardLayout(ro, w), null, null, new BoardLayout(ki, w), new BoardLayout(qu, w), new BoardLayout(bi, w), new BoardLayout(kn, w), new BoardLayout(ro, w)}
+//        };
 
         spaces = new Space[8][8];
         turn = TeamColor.WHITE;
@@ -64,6 +74,20 @@ public class Board {
             }
         }
 
+    }
+
+    public boolean checkForGameOver() {
+        TeamColor opposingColor = this.getOpposingColor().get(getTurn());
+        boolean[][] possibleSpaces = getPossibleMovesByColor(opposingColor, this.getSpaces(), false);
+
+        for (int i = 0; i < possibleSpaces.length; i++) {
+            for (int j = 0; j < possibleSpaces[i].length; j++) {
+                if (possibleSpaces[i][j]) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public TeamColor getTurn() {
@@ -80,12 +104,44 @@ public class Board {
         return this.spaces[location.getX()][location.getY()].getPiece();
     }
 
-    public void setPiece(Piece p, BoardLocation oldLoc, BoardLocation newLoc) {
-        this.spaces[oldLoc.getX()][oldLoc.getY()].setPiece(null);
-        this.spaces[newLoc.getX()][newLoc.getY()].setPiece(p);
-        swapTurn();
-        System.out.println("It is now: " + this.getTurn() + "'s turn.");
-        updatePlayers(this.gameKey);
+    public void closeLobby(String alert, int type) {
+        this.players.forEach((id, p)->{
+            p.getThread().showAlert(alert, type);
+        });
+        Server.clearLobby(this.gameKey);
+    }
+
+    public void setPiece(Piece p, BoardLocation oldLoc, BoardLocation newLoc, Piece target) {
+        Piece oldP = this.spaces[oldLoc.getX()][oldLoc.getY()].getPiece();
+        Piece newP = this.spaces[newLoc.getX()][newLoc.getY()].getPiece();
+        if (
+                (oldP != null) &&
+                (newP != null) && (oldP.getColor() == newP.getColor() && oldP.getPieceType() == PieceType.KING && newP.getPieceType() == PieceType.ROOK)) {
+            if (oldP.getLocation().getY() > newP.getLocation().getY()) { // piece is WHITE
+                this.spaces[oldP.getLocation().getX()][oldP.getLocation().getY() - 2].setPiece(oldP);
+                this.spaces[newP.getLocation().getX()][newP.getLocation().getY() + 2].setPiece(newP);
+            } else {                                                     // piece is BLACK
+                this.spaces[oldP.getLocation().getX()][oldP.getLocation().getY() + 2].setPiece(oldP);
+                this.spaces[newP.getLocation().getX()][newP.getLocation().getY() - 2].setPiece(newP);
+            }
+            this.spaces[oldLoc.getX()][oldLoc.getY()].setPiece(null);
+            this.spaces[newLoc.getX()][newLoc.getY()].setPiece(null);
+        } else {
+            this.spaces[oldLoc.getX()][oldLoc.getY()].setPiece(null);
+            this.spaces[newLoc.getX()][newLoc.getY()].setPiece(p);
+            this.spaces[newLoc.getX()][newLoc.getY()].getPiece().pawnMoved();
+            if (!((p.getPieceType() != PieceType.PAWN) || (newLoc.getX()!=7 && newLoc.getX() !=0))) {
+                this.spaces[newLoc.getX()][newLoc.getY()].setPiece(new Piece(PieceType.QUEEN, p.getColor(), p.getLocation(), true, this));
+            }
+        }
+
+        updatePlayers(this.gameKey, target != null ? target.getPieceType().getKey() : 1);
+        if (this.checkForGameOver()) {
+            closeLobby(this.getTurn() + " has won the match!", 1);
+        } else {
+            swapTurn();
+        }
+
     }
 
 
@@ -118,7 +174,30 @@ public class Board {
     public HashMap<TeamColor, TeamColor> getOpposingColor() {
         return opposingColors;
     }
+    public boolean[][] getPossibleMovesByColor(TeamColor color, Space[][] sps, boolean targetFriend) {
+        boolean[][] moveSpaces = new boolean[8][8];
+        for (Space[] space : sps) {
+            for (Space s : space) {
+                if (s.isEmpty())
+                    continue;
+                if (s.getPiece().getColor() != color)
+                    continue;
+                Piece p = s.getPiece();
 
+                boolean[][] moves = p.getPossibleMoves(p, targetFriend);
+                for (int x = 0; x < moves.length; x++) {
+                    for (int y = 0; y < moves[x].length; y++) {
+                        if (moves[x][y]) {
+                            moveSpaces[x][y] = true;
+                            System.out.println("SPACE" + s.getLocation().getX() + ". " + s.getLocation().getY());
+                        }
+                    }
+                }
+
+            }
+        }
+        return moveSpaces;
+    }
     public boolean[][] getPossibleMovesByColor(TeamColor color, Space[][] sps) {
         boolean[][] moveSpaces = new boolean[8][8];
         for (Space[] space : sps) {
@@ -130,7 +209,7 @@ public class Board {
                     continue;
                 Piece p = s.getPiece();
 
-                boolean[][] moves = Piece.getPossibleMoves(p, true, sps);
+                boolean[][] moves = p.getPossibleMoves(p, true, sps);
                 for (int x = 0; x < moves.length; x++) {
                     for (int y = 0; y < moves[x].length; y++) {
                         if (moves[x][y]) {
@@ -144,7 +223,7 @@ public class Board {
         return moveSpaces;
     }
 
-    public static boolean isInCheck(TeamColor targetColor, Space[][] spaces, boolean[][] moveSpaces) {
+    public boolean isInCheck(TeamColor targetColor, Space[][] spaces, boolean[][] moveSpaces) {
         for (int i = 0; i < moveSpaces.length; i++) {
             for (int j = 0; j < moveSpaces[i].length; j++) {
                 if (moveSpaces[i][j]) {
@@ -201,11 +280,11 @@ public class Board {
         return layout;
     }
 
-    public void updatePlayers(String lobbyKey) {
+    public void updatePlayers(String lobbyKey, int pieceType) {
         this.players.forEach((id, p)->{
             try {
                 p.getThread().setLobbyKey(lobbyKey);
-                p.getThread().updateGame(this.getLayout(), p.getColor().getKey());
+                p.getThread().updateGame(this.getLayout(), p.getColor().getKey(), pieceType);
                 //p.getThread().setBoard(this);
 
             } catch (IOException e) {
